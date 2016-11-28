@@ -1,0 +1,194 @@
+/*
+** game.c for  in /home/veyrie_f/rendu/CPE_2014_corewar
+**
+** Made by fernand veyrier
+** Login   <veyrie_f@epitech.net>
+**
+** Started on  Sat Mar 21 14:54:38 2015 fernand veyrier
+   Last update Thu Apr 16 14:16:24 2015 fernand veyrier
+*/
+
+#include "corewar_GL.h"
+
+int		refresh_vel = 200;
+char		toto[5] = {0, 0, 0, 0, 0};
+
+int		champion_alive(t_win *champ, int tmp, int nbr_live, t_game *game)
+{
+  static int	total_cycle = 0;
+  int		i;
+  int		alive;
+
+  i = 0;
+  alive = 0;
+  total_cycle = total_cycle + tmp;
+  if (nbr_live >= 40)
+    tmp -= CYCLE_DELTA;
+  while (game->champ_alive[i][0] != -2)
+    {
+      champ->champion = champ->first_champ;
+      if (game->champ_alive[i][1] > 0)
+	{
+	  while (champ->champion && champ->champion->player_id != i + 1)
+	    champ->champion = champ->champion->next;
+	  ++alive;
+	  game->champ_alive[i][1] = 0;
+	  toto[i] = 1;
+	}
+      else
+	{
+	  game->champ_alive[i][1] = -1;
+	  toto[i] = 0;
+	}
+      ++i;
+    }
+  while (i < 4)
+    toto[i++] = 0;
+  if (alive == 1)
+    {
+      i = 0;
+      while (game->champ_alive[i][0] != -2 && game->champ_alive[i][1] < 0)
+	++i;
+      if (game->champ_alive[i][0] == -2)
+	{
+	  printf("there is no winner\n");
+	  return (-1);
+	}
+      while (champ->first_champ && champ->first_champ->player_id != i + 1)
+	champ->first_champ = champ->first_champ->next;
+      if (champ->first_champ)
+	printf("%s :le champion numero %d a gagné.\n", champ->first_champ->name, i + 1);
+      return (-1);
+    }
+  return (tmp);
+}
+
+void		my_exec_funct(t_champ *champion, t_game *game, t_mem *arena)
+{
+  arena[champion->PC].head = 0;
+  if (game->j == 0)
+    champion->PC = (champion->PC + game->func[game->j]
+		    (arena, champion->PC, champion,
+		     &(game->nbr_live), game)) % MEM_SIZE;
+  else
+    champion->PC = (champion->PC + game->func[game->j]
+		    (arena, champion->PC, champion)) % MEM_SIZE;
+  arena[champion->PC].head = champion->player_id;
+}
+
+void		game_play(t_mem *arena, t_champ *champion, t_game *game)
+{
+  while (champion != NULL)
+    {
+      if (champion->dead == 0)
+	{
+	  game->j = 0;
+	  if (champion->PC >= MEM_SIZE)
+	    champion->PC = 0;
+	  while (champion->PC < 0)
+	    champion->PC = MEM_SIZE + champion->PC;
+	  while (game->j < 16 && arena[champion->PC].cmd != game->cmd[game->j])
+	    ++game->j;
+	  if (game->j != 16 && champion->cycles_to_next <= 0)
+	    my_exec_funct(champion, game, arena);
+	  if (game->j == 16)
+	    champion->PC = (champion->PC + 1) % MEM_SIZE;
+	  --champion->cycles_to_next;
+	}
+      champion = champion->next;
+    }
+  champion = game->first_champ;
+  ++game->my_turn;
+  ++game->nb_turn;
+}
+
+void		manage_events(t_aff *aff)
+{
+  SDL_Delay(1);
+  while (SDL_PollEvent(&aff->event))
+    {
+      (aff->event.type == SDL_QUIT ||
+       (aff->event.type == SDL_KEYDOWN
+	&& aff->event.key.keysym.sym == SDLK_ESCAPE))
+	? aff->_continue = 0 : 0;
+      if (aff->event.type == SDL_KEYDOWN && aff->event.key.keysym.sym == SDLK_LEFT)
+	refresh_vel -= 50;
+      if (aff->event.type == SDL_KEYDOWN && aff->event.key.keysym.sym == SDLK_RIGHT)
+	refresh_vel += 50;
+      refresh_vel = (refresh_vel < 1) ? 1 : refresh_vel;
+    }
+}
+
+void		refresh_image(t_aff *aff, t_win *champ,
+			      t_sound sound, t_mem *arena)
+{
+  static int	first_pass = 0;
+
+  if (toto[4] == 0)
+    ++toto[4];
+  else
+    quake_sounds(sound, toto);
+  manage_events(aff);
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  draw_image_textures(aff->text, toto);
+  draw_gui_textures(aff->text);
+  draw_memory(aff->rank % 90, arena, aff->champs, aff->game_over - 1);
+  ++aff->rank;
+  aff->rank = (aff->rank > 20000) ? 0 : aff->rank;
+  if (aff->game_over == 1)
+    {
+      Mix_FreeChunk(sound.music);
+      play_music(sound.victory);
+      aff->game_over = 2;
+    }
+  if (aff->game_over == 2)
+    disp_game_over(aff->text);
+}
+
+void		start_game(t_mem *arena, t_champ *champion,
+			   int rounds_left, t_sound sound, t_game game)
+{
+  t_win		champ;
+  t_aff		aff;
+
+  init_display_screen(&aff, champion, arena);
+  play_sound(sound.play);
+  game.nb_turn = 0;
+  game.i = 0;
+  game.nbr_live = 0;
+  game.first_champ = champion;
+  init_cmd(game.cmd);
+  init_func(game.func);
+  champ.champion = champion;
+  champ.first_champ = game.first_champ;
+  game.cycle_todie = CYCLE_TO_DIE;
+  while (aff._continue == 1)
+    {
+      refresh_image(&aff, &champ, sound, arena);
+      while (aff.game_over != 1 && aff._continue == 1 &&
+	     (game.cycle_todie
+	      = champion_alive(&champ, game.cycle_todie, game.nbr_live, &game)) > 0)
+	{
+	  champion = game.first_champ;
+	  game.my_turn = 0;
+	  while (aff._continue == 1 && game.my_turn < game.cycle_todie)
+	    {
+	      if (game.nb_turn % refresh_vel == 0)
+		refresh_image(&aff, &champ, sound, arena);
+	      if (game.nb_turn == rounds_left)
+		print_memory(arena, "0123456789ABCDEF");
+	      game_play(arena, champion, &game);
+	      if (game.nb_turn % refresh_vel == 0)
+		{
+		  glFlush();
+		  SDL_GL_SwapBuffers();
+		}
+	    }
+	  ++game.i;
+	}
+      if (aff.game_over == 0)
+	aff.game_over = 1;
+      glFlush();
+      SDL_GL_SwapBuffers();
+    }
+}
