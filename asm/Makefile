@@ -5,7 +5,7 @@
 ## Login   <noboud_n@epitech.net>
 ## 
 ## Started on  Mon Feb 23 11:59:24 2015 Nyrandone Noboud-Inpeng
-## Last update Thu Apr 16 23:22:00 2015 Nyrandone Noboud-Inpeng
+## Last update Mon Nov 28 11:30:46 2016 Florian Saurs
 ##
 
 SRC	= main.c \
@@ -79,7 +79,7 @@ INCDIR	= -I ./../include/
 
 MAKEOBJ	= obj
 
-CFLAGS	= -Wall -Wextra -W -Werror -ansi -pedantic
+CFLAGS	= -Wall -Wextra -W -ansi -pedantic
 
 $(OBJDIR)%.o: $(SRCDIR)%.c
 	@mkdir -p $(MAKEOBJ)
